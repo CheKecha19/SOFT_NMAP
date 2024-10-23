@@ -1,0 +1,44 @@
+$results = @()
+$currentResult = $null
+$input="...\nmap_results.txt"
+$output="...\nmap_results.xlsx"
+# Читаем файл и обрабатываем строки
+Get-Content -Path $input | ForEach-Object {
+    # Поиск строки с IP-адресом и, при наличии, доменным именем
+    if ($_ -match "Nmap scan report for (.+?) \(([\d\.]+)\)") {
+        if ($currentResult) {
+            $results += [PSCustomObject]$currentResult
+        }
+        $domainName = $matches[1]
+        $currentHost = $matches[2]
+        $currentResult = [ordered]@{
+            'IP Address' = $currentHost
+            'Domain Name' = $domainName
+        }
+        $portIndex = 1
+    } elseif ($_ -match "Nmap scan report for ([\d\.]+)") {
+        if ($currentResult) {
+            $results += [PSCustomObject]$currentResult
+        }
+        $currentHost = $matches[1]
+        $currentResult = [ordered]@{
+            'IP Address' = $currentHost
+            'Domain Name' = $null
+        }
+        $portIndex = 1
+    }
+    # Поиск строки с информацией о портах и состояниях
+    elseif ($_ -match "(\d+/tcp)\s+(\w+)\s+\w+") {
+        $currentResult["Port $portIndex"] = $matches[1]
+        $currentResult["State $portIndex"] = $matches[2]
+        $portIndex++
+    }
+}
+ 
+# Последний результат, если остался
+if ($currentResult) {
+    $results += [PSCustomObject]$currentResult
+}
+ 
+# Экспорт в Excel
+$results | Export-Excel -Path $output -AutoSize -WorksheetName "Nmap Results"
